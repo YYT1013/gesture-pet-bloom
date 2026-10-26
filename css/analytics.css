@@ -38,6 +38,8 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 12px;
+  flex: 0 0 auto;
+  white-space: nowrap;
   color: inherit;
   text-decoration: none;
 }
@@ -52,7 +54,7 @@ body {
   font-size: 18px;
 }
 .brand b, .brand small { display: block; }
-.brand b { font-size: 15px; letter-spacing: 0.04em; }
+.brand b { font-size: 15px; letter-spacing: 0; }
 .brand small { color: var(--muted); font-size: 11px; }
 
 .actions { display: flex; align-items: center; gap: 10px; }
@@ -82,20 +84,20 @@ main {
   padding: 56px 0 72px;
 }
 
-.intro { max-width: 760px; margin-bottom: 38px; }
+.intro { max-width: 980px; margin-bottom: 38px; }
 .eyebrow {
   margin: 0 0 12px;
   color: var(--teal);
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.18em;
+  letter-spacing: 0;
 }
 h1 {
   margin: 0;
-  max-width: 720px;
+  max-width: 900px;
   font-size: clamp(32px, 5vw, 56px);
   line-height: 1.06;
-  letter-spacing: -0.035em;
+  letter-spacing: 0;
 }
 .lede { max-width: 620px; margin: 18px 0 0; color: var(--muted); font-size: 15px; }
 
@@ -123,8 +125,9 @@ h1 {
   overflow-wrap: anywhere;
   font-size: clamp(20px, 2.2vw, 30px);
   line-height: 1.1;
-  letter-spacing: -0.025em;
+  letter-spacing: 0;
 }
+.metricCard:last-child .metricValue { font-size: clamp(18px, 1.75vw, 24px); }
 
 .breakdownGrid {
   display: grid;
@@ -150,10 +153,10 @@ h1 {
 }
 
 @media (max-width: 640px) {
-  .topbar { align-items: flex-start; padding: 14px 16px; gap: 12px; }
+  .topbar { flex-wrap: wrap; align-items: flex-start; padding: 14px 16px; gap: 10px; }
   .brandMark { width: 30px; height: 30px; }
-  .actions { flex-wrap: wrap; justify-content: flex-end; }
-  .source { order: 3; width: 100%; justify-content: center; }
+  .actions { width: 100%; flex-wrap: nowrap; justify-content: flex-end; }
+  .source { order: -1; flex: 1 1 auto; justify-content: center; min-width: 0; }
   main { width: calc(100% - 32px); padding-top: 36px; }
   h1 { font-size: 36px; }
   .metricGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
