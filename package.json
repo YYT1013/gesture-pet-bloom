@@ -1,0 +1,23 @@
+{
+  "name": "gesture-pet",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "指尖开花：隔空手势交互宠物竞赛项目",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && node tools/copy-dist.mjs",
+    "preview": "vite preview",
+    "test": "node --test tests && node tools/test-logic.mjs",
+    "test:e2e": "node tools/e2e-cdp.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.4"
+  },
+  "devDependencies": {
+    "vite": "^7.1.9"
+  },
+  "engines": {
+    "node": ">=20.19"
+  }
+}

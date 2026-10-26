@@ -1,0 +1,634 @@
+/* ============================================================
+ * app.css —— 极简外壳：一条顶栏 + 一块画布 + 一个设置面板
+ *
+ * 为嵌入设计：
+ *   · 全部用 flex + dvh，外层容器给多大就铺多大，不出现滚动条；
+ *   · 没有任何固定像素宽度的主体容器，手机竖屏 / 桌面横屏都只改字号和间距；
+ *   · 不使用外网字体，只用系统字体，零外部请求。
+ * ============================================================ */
+
+:root {
+  --ink: #3d332a;
+  --muted: #8d7d6b;
+  --line: rgba(61, 51, 42, 0.12);
+  --paper: #fbf6ee;
+  --card: #fffdf9;
+  --accent: #e0926f;
+  --accent-soft: rgba(224, 146, 111, 0.14);
+  --radius: 14px;
+  --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+          "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  overflow: hidden;
+  background: var(--paper);
+  color: var(--ink);
+  font: 14px/1.5 var(--font);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---------------- 骨架布局 ---------------- */
+.app {
+  height: 100dvh;
+  width: 100%;
+  max-width: 100vw;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.stageWrap { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+
+#stage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+/* ---------------- 顶栏 ---------------- */
+.bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 52px;
+  min-width: 0;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 252, 246, 0.78);
+  backdrop-filter: blur(10px);
+  z-index: 6;
+}
+.brand { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; flex: 0 0 auto; }
+.brand b { font-size: 15px; font-weight: 600; letter-spacing: 0.02em; }
+.brand .sub { font-size: 10px; letter-spacing: 0.2em; color: var(--muted); }
+
+.pets {
+  flex: 1 1 auto;
+  display: flex;
+  gap: 6px;
+  /* safe center：放得下就居中，放不下就从左排（否则手机上前几个 chip
+     会被顶进不可滚动的左侧，点不到） */
+  justify-content: safe center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-width: 0;
+  padding: 4px 2px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.pets::-webkit-scrollbar { display: none; }
+
+.chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s, border-color 0.2s;
+  white-space: nowrap;
+}
+.chip i {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s;
+}
+.chip:hover { color: var(--ink); background: rgba(255, 255, 255, 0.6); }
+.chip.on {
+  color: var(--ink);
+  background: #fff;
+  border-color: var(--line);
+  box-shadow: 0 1px 3px rgba(90, 70, 50, 0.08);
+}
+.chip.on i { transform: scale(1.25); }
+
+.gear {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+.gear:hover { color: var(--ink); border-color: rgba(61, 51, 42, 0.28); }
+
+/* ---------- 上传我的专属宠物 ---------- */
+.adopt {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 13px;
+  border: 1px solid rgba(224, 146, 111, 0.42);
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fff8f2, #ffeee3);
+  color: #b3603f;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.15s, box-shadow 0.2s, border-color 0.2s;
+}
+.adopt:hover {
+  transform: translateY(-1px);
+  border-color: rgba(224, 146, 111, 0.7);
+  box-shadow: 0 4px 14px rgba(224, 146, 111, 0.25);
+}
+.adopt .plus { font-size: 13px; line-height: 1; opacity: 0.8; }
+
+.chip.mine { position: relative; }
+.chip.mine .heart {
+  font-style: normal;
+  font-size: 9px;
+  color: #e0627f;
+  transform: translateY(-3px);
+  margin-left: -2px;
+}
+
+.adoptInline {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 0;
+  border: 1px dashed rgba(224, 146, 111, 0.55);
+  border-radius: 999px;
+  background: rgba(255, 250, 244, 0.9);
+  color: #b3603f;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.adoptInline:hover { background: #fff3ea; border-color: var(--accent); }
+
+/* ---------------- 摄像头小窗 ---------------- */
+.pip {
+  position: absolute;
+  right: 14px; bottom: 14px;
+  width: 176px;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #1b1712;
+  box-shadow: 0 8px 24px rgba(80, 60, 40, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.5);
+  display: none;
+  z-index: 3;
+}
+body.hascam .pip { display: block; }
+body.nocam .pip { display: none; }
+.pip video, .pip canvas {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+}
+.pip video { transform: scaleX(-1); }  /* 镜像，像照镜子 */
+
+/* ---------------- HUD / Toast ---------------- */
+.hud {
+  position: absolute;
+  left: 14px; bottom: 14px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(255, 253, 249, 0.82);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(8px);
+  transition: color 0.3s, background 0.3s, border-color 0.3s;
+  z-index: 3;
+  pointer-events: none;
+}
+.hud.hot { color: #c2664a; background: rgba(255, 245, 238, 0.92); border-color: rgba(224, 146, 111, 0.4); }
+
+.toast {
+  position: absolute;
+  top: 14px; left: 50%;
+  transform: translate(-50%, -6px);
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(61, 51, 42, 0.88);
+  color: #fff8ef;
+  font-size: 12.5px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s;
+  z-index: 4;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------------- 设置面板 ---------------- */
+.panel {
+  position: absolute;
+  top: 8px; right: 14px;
+  width: 272px;
+  padding: 14px 16px 12px;
+  border-radius: 16px;
+  background: rgba(255, 253, 249, 0.96);
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 32px rgba(90, 70, 50, 0.14);
+  backdrop-filter: blur(12px);
+  opacity: 0;
+  transform: translateY(-8px) scale(0.98);
+  transform-origin: top right;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+  z-index: 7;
+}
+.panel.open { opacity: 1; transform: none; pointer-events: auto; }
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--muted);
+  padding: 7px 0;
+}
+.row.check { justify-content: flex-start; gap: 8px; cursor: pointer; }
+.row span { color: var(--ink); font-size: 13px; }
+
+input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 150px;
+  height: 3px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(61, 51, 42, 0.16);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(90, 70, 50, 0.25);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 12px; height: 12px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--accent);
+}
+input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px; }
+
+select {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 150px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+
+.ghost {
+  width: 100%;
+  margin-top: 8px;
+  padding: 9px 0;
+  border: 1px dashed rgba(61, 51, 42, 0.22);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.ghost:hover { background: var(--accent-soft); border-color: rgba(224, 146, 111, 0.5); }
+.tip { margin: 10px 0 0; font-size: 11.5px; line-height: 1.6; color: var(--muted); }
+
+/* ---------------- 启动遮罩 ---------------- */
+.start {
+  position: absolute; inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: linear-gradient(180deg, rgba(251, 246, 238, 0.86), rgba(245, 236, 224, 0.94));
+  backdrop-filter: blur(3px);
+  z-index: 9;
+  transition: opacity 0.45s;
+}
+.start.gone { opacity: 0; pointer-events: none; }
+
+.card {
+  max-width: 340px;
+  padding: 28px 28px 22px;
+  border-radius: 22px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: 0 18px 44px rgba(90, 70, 50, 0.14);
+  text-align: center;
+}
+.card h1 { margin: 0 0 8px; font-size: 22px; font-weight: 600; letter-spacing: 0.06em; }
+.card p { margin: 0 0 20px; font-size: 13.5px; color: var(--muted); }
+.btns { display: flex; gap: 8px; justify-content: center; }
+.btns button {
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.2s, background 0.2s;
+}
+.btns button:hover { transform: translateY(-1px); }
+.btns .primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(224, 146, 111, 0.35);
+}
+.card small {
+  display: block;
+  margin-top: 16px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.start.err .card small { color: #c2664a; }
+
+/* ---------------- 干净模式（截图 / 录屏） ---------------- */
+body.minimal .bar,
+body.minimal .hud,
+body.minimal .pip { opacity: 0; pointer-events: none; }
+.bar, .hud { transition: opacity 0.3s; }
+
+/* ---------------- 小屏适配 ---------------- */
+@media (max-width: 720px) {
+  .bar { height: 46px; gap: 8px; padding: 0 10px; }
+  .brand .sub { display: none; }
+  .brand b { font-size: 14px; }
+  .pets { justify-content: flex-start; }
+  .chip { padding: 5px 10px; font-size: 12.5px; }
+  .gear { padding: 5px 10px; font-size: 12px; }
+  .pip { width: 112px; right: 10px; bottom: 10px; }
+  .hud { left: 10px; bottom: 10px; font-size: 11.5px; padding: 6px 11px; }
+  .panel { right: 8px; left: 8px; width: auto; }
+  .card { padding: 24px 20px 18px; }
+  .card h1 { font-size: 19px; }
+}
+@media (max-height: 480px) {
+  .bar { height: 42px; }
+  .card p { margin-bottom: 12px; }
+  .card small { margin-top: 10px; }
+}
+
+/* ============================================================
+ * 上传我的专属宠物 —— 温柔面板
+ * ============================================================ */
+.modal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(58, 44, 32, 0.34);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.26s;
+  z-index: 40;
+}
+.modal.on { opacity: 1; pointer-events: auto; }
+
+.sheet {
+  position: relative;
+  width: min(440px, 100%);
+  max-height: min(88dvh, 720px);
+  overflow-y: auto;
+  padding: 26px 26px 22px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #fffdf9 0%, #fdf7ef 100%);
+  border: 1px solid rgba(224, 146, 111, 0.22);
+  box-shadow: 0 26px 70px rgba(70, 45, 25, 0.26);
+  transform: translateY(10px) scale(0.985);
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.3, 1);
+  scrollbar-width: thin;
+}
+.modal.on .sheet { transform: none; }
+
+.sheet .x {
+  position: absolute;
+  top: 12px; right: 14px;
+  width: 30px; height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 21px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.sheet .x:hover { background: rgba(61, 51, 42, 0.06); color: var(--ink); }
+
+.sheet h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #4a3a2c;
+}
+.sheet .soft {
+  margin: 0 0 18px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--muted);
+}
+
+/* 选照片区 */
+.drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 26px 16px;
+  border: 1.5px dashed rgba(224, 146, 111, 0.45);
+  border-radius: 16px;
+  background: rgba(255, 250, 243, 0.8);
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.2s, border-color 0.2s;
+}
+.drop:hover { background: #fff5ec; border-color: var(--accent); }
+.drop b { font-size: 14px; color: #b3603f; font-weight: 600; }
+.drop span { font-size: 11.5px; color: var(--muted); }
+
+.thumbs {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.thumbs:empty { display: none; }
+.thumbs img {
+  width: 62px; height: 62px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  box-shadow: 0 2px 6px rgba(90, 70, 50, 0.1);
+}
+
+.row2 { display: flex; gap: 12px; margin-top: 16px; }
+.fld {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.fld.wide { margin-top: 14px; width: 100%; }
+.fld select, .fld input[type="text"], .fld input:not([type]) {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 7px 9px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.fld select:focus, .fld input:focus {
+  border-color: rgba(224, 146, 111, 0.75);
+  box-shadow: 0 0 0 3px rgba(224, 146, 111, 0.14);
+}
+
+/* 隐私提示 */
+.privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 16px 0 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(120, 150, 120, 0.09);
+  border: 1px solid rgba(120, 150, 120, 0.18);
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: #5c7259;
+}
+.privacy.small {
+  margin: 12px 0 0;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+.privacy .lock {
+  flex: 0 0 auto;
+  width: 11px; height: 13px;
+  margin-top: 2px;
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+  position: relative;
+}
+.privacy .lock::before {
+  content: "";
+  position: absolute;
+  left: 50%; top: -5px;
+  width: 7px; height: 7px;
+  margin-left: -3.5px;
+  border: 1.5px solid currentColor;
+  border-bottom: 0;
+  border-radius: 5px 5px 0 0;
+}
+
+.sheet .primary {
+  padding: 11px 22px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(224, 146, 111, 0.32);
+  transition: transform 0.15s, box-shadow 0.2s, opacity 0.2s;
+}
+.sheet .primary:hover { transform: translateY(-1px); }
+.sheet .primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+.sheet .primary.wide { width: 100%; }
+.sheet .btns { margin-top: 16px; }
+
+.prevWrap {
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  border-radius: 16px;
+  background: rgba(61, 51, 42, 0.05);
+  overflow: hidden;
+}
+.prevWrap canvas { display: block; border-radius: 12px; max-width: 100%; height: auto; }
+
+/* 处理中 */
+.step.busy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 34px 0 26px;
+  text-align: center;
+}
+.step.busy p { margin: 0; font-size: 14px; color: #5c4a38; }
+.step.busy small { font-size: 11.5px; color: var(--muted); }
+.ring {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: 3px solid rgba(224, 146, 111, 0.22);
+  border-top-color: var(--accent);
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+body.modalOpen { overflow: hidden; }
+
+/* 摄像头画面跟场景同调（暖一点、低对比一点），减少「两个世界」的割裂感 */
+.pip video {
+  filter: sepia(0.16) saturate(1.02) brightness(1.03) contrast(0.96);
+}
+
+@media (max-width: 720px) {
+  .adopt { padding: 5px 9px; font-size: 0; gap: 0; }
+  .adopt .plus { font-size: 15px; }
+  .sheet { padding: 22px 18px 18px; border-radius: 18px; }
+  .row2 { flex-direction: column; gap: 10px; }
+}

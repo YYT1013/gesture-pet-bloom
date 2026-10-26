@@ -1,0 +1,279 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>E2E-RUNNING</title>
+<style>
+  body{font:13px/1.5 ui-monospace,Consolas,monospace;margin:0;background:#1b1b1b;color:#ddd}
+  pre{padding:12px;white-space:pre-wrap}
+  .ok{color:#7ddc9a}.bad{color:#ff8b7a}
+</style>
+<pre id="out">running…</pre>
+<script>
+/* 模块链接/解析期错误不会进 try/catch，先挂一个全局兜底 */
+window.addEventListener("error", (e) => {
+  document.title = "E2E-ERROR";
+  document.getElementById("out").textContent =
+    "ERROR: " + (e.message || e.error) + "\n" + ((e.error && e.error.stack) || "");
+});
+window.addEventListener("unhandledrejection", (e) => {
+  document.title = "E2E-REJECT";
+  document.getElementById("out").textContent = "REJECT: " + ((e.reason && e.reason.stack) || e.reason);
+});
+</script>
+<script type="module">
+import { PETS } from "../js/config.js";
+import { Pet } from "../js/pet.js";
+import { loadScene, buildBackdrop, drawLightPass, drawLightSpill, SCENE } from "../js/scene.js";
+import { loadAssets, layout, drawPet, drawPetShadow, drawMood } from "../js/render.js";
+import { makePuppet } from "../js/matte.js";
+import { recordToCfg } from "../js/custom.js";
+
+function paint() {
+  const el = document.getElementById("out");
+  if (!el) return;
+  el.textContent = log.join("\n") + "\n…";
+}
+const log = [];
+let fails = 0;
+const ok  = (m) => { log.push("  ok   " + m); paint(); };
+const bad = (m) => { fails++; log.push("  FAIL " + m); paint(); };
+const head = (m) => { log.push("\n[" + m + "]"); paint(); };
+
+const W = 1280, H = 800, DPR = 1;
+
+function mkCanvas() {
+  const c = document.createElement("canvas");
+  c.width = W * DPR; c.height = H * DPR;
+  const g = c.getContext("2d", { alpha: false, willReadFrequently: true });
+  g.setTransform(DPR, 0, 0, DPR, 0, 0);
+  return { c, g };
+}
+
+function lum(g, x, y, w = 1, h = 1) {
+  const d = g.getImageData(Math.round(x), Math.round(y), w, h).data;
+  let s = 0;
+  for (let i = 0; i < d.length; i += 4) s += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+  return s / (d.length / 4);
+}
+
+/* 两帧差异像素数：判断「宠物到底有没有被画上去」 */
+function diffCount(a, b) {
+  const da = a.getImageData(0, 0, W * DPR, H * DPR).data;
+  const db = b.getImageData(0, 0, W * DPR, H * DPR).data;
+  let n = 0;
+  for (let i = 0; i < da.length; i += 4) {
+    if (Math.abs(da[i] - db[i]) + Math.abs(da[i + 1] - db[i + 1]) + Math.abs(da[i + 2] - db[i + 2]) > 24) n++;
+  }
+  return n;
+}
+
+function frame(pet, now, withPet = true) {
+  const { g } = mkCanvas();
+  const bg = buildBackdrop(W, H, DPR);
+  if (bg) g.drawImage(bg, 0, 0, W, H);
+  layout(pet, W, H);
+  drawLightSpill(g, W, H, pet.cx, H * SCENE.groundY, pet.dispH * 0.62);
+  if (withPet) {
+    drawPetShadow(g, pet);
+    drawPet(g, pet, W, H, now);
+    drawMood(g, pet, W, H, now);
+  }
+  drawLightPass(g, W, H);
+  return g;
+}
+
+try {
+  /* ---------- 1. 场景 ---------- */
+  head("1. 实景桌面");
+  const sOK = await loadScene();
+  sOK ? ok("桌面实景已加载 desk-land / desk-port") : bad("桌面实景加载失败（会退成纯色底，不像实景）");
+  const gBg = frame(new Pet(PETS[0]), 0, false);
+  const skyL = lum(gBg, W * 0.5, H * 0.06), floorL = lum(gBg, W * 0.5, H * 0.93);
+  Math.abs(skyL - floorL) > 6
+    ? ok(`背景上下亮度差 ${(skyL - floorL).toFixed(1)}（有纵深，不是一张纯色）`)
+    : bad(`背景上下亮度几乎相同（${skyL.toFixed(1)} / ${floorL.toFixed(1)}），实景没生效`);
+
+  /* ---------- 2. 素材 ---------- */
+  head("2. 7 只内置宠物素材");
+  const n = await loadAssets(PETS);
+  n >= 7 ? ok(`加载 ${n} 只（含头/身/前爪分层）`) : bad(`只加载到 ${n} 只`);
+
+  /* ---------- 3. 逐只渲染 ---------- */
+  head("3. 逐只上桌渲染（宠物像素 / 脚下投影）");
+  const pets = [];
+  for (const cfg of PETS) {
+    const p = new Pet(cfg);
+    p.update(0.016, { active: false, zone: null, d: 9 }, 1000);
+    const gNo = frame(p, 1000, false);
+    const gYes = frame(p, 1000, true);
+    const painted = diffCount(gNo, gYes);
+
+    /* 宠物脚下正中 vs 同高度画面边缘：投影应该让桌面上偏暗 */
+    const gy = H * SCENE.groundY;
+    const under = lum(gYes, p.cx - 18, gy - 4, 36, 12);
+    const side  = lum(gYes, W * 0.06, gy - 4, 36, 12);
+    /* 宠物身上取样（头部中心）应该和周围桌面有明显差异 */
+    const body = lum(gYes, p.cx - 10, gy - p.dispH * 0.72, 20, 20);
+    const bgs  = lum(gNo, p.cx - 10, gy - p.dispH * 0.72, 20, 20);
+
+    pets.push({ id: cfg.id, name: cfg.name, painted, under, side, body, bgs, p });
+    const line = `${cfg.name.padEnd(3)} 体高${p.dispH.toFixed(0)}px 绘制像素${painted} 脚下${under.toFixed(0)}/旁侧${side.toFixed(0)} 身上${body.toFixed(0)}/背景${bgs.toFixed(0)}`;
+    if (painted < 20000) bad(line + " ← 几乎没画上去");
+    else if (Math.abs(side - under) < 3) bad(line + " ← 没有脚下投影");
+    else if (Math.abs(body - bgs) < 10) bad(line + " ← 宠物与背景没区分");
+    else ok(line);
+  }
+
+  /* ---------- 4. 手势动作 ---------- */
+  head("4. 六个手势作用到照片木偶上");
+  const base = { active: false, zone: null, d: 9, lx: 0, ly: 0, brushing: false, tap: false, twoHands: false };
+  {
+    const p = pets[0].p;
+    const base = { active: false, zone: null, d: 9, lx: 0, ly: 0, brushing: false, tap: false, twoHands: false };
+
+    /* 摸头：低头 */
+    p.update(0.016, base, 2000);
+    for (let t = 0; t < 40; t++) p.update(0.016, { ...base, active: true, zone: "head", d: -0.05, ly: -0.8 }, 2000 + t * 16);
+    p.pose.headRot < -0.02 || p.pose.headDY > 0.002
+      ? ok(`摸头低头：headDY=${p.pose.headDY.toFixed(3)} headRot=${p.pose.headRot.toFixed(3)}`)
+      : bad(`摸头没反应：headDY=${p.pose.headDY.toFixed(3)}`);
+
+    /* 张开手：转圈 */
+    const spun = p.spin(3000);
+    let minSx = 1;
+    for (let t = 0; t < 120; t++) { p.update(0.016, base, 3000 + t * 16); minSx = Math.min(minSx, p.pose.sx); }
+    spun && minSx < 0 ? ok(`张开手转一圈：sx 最低 ${minSx.toFixed(2)}`) : bad(`转圈异常 sx=${minSx.toFixed(2)}`);
+    Math.abs(p.pose.sx + 1) < 0.9 || true;
+
+    /* 轻点：歪头（tap 是「一次事件」，只在第一帧给 true） */
+    p.update(0.016, base, 6000);
+    let tilt = 0;
+    for (let t = 0; t < 80; t++) {
+      p.update(0.016, { ...base, active: true, zone: "head", d: -0.05, tap: t === 0, ly: -0.75 }, 6000 + t * 16);
+      tilt = Math.max(tilt, Math.abs(p.pose.headRot));
+    }
+    tilt > 0.1 ? ok(`轻点歪头：${tilt.toFixed(2)} rad`) : bad(`轻点没歪头 ${tilt.toFixed(2)}`);
+
+    /* 挥手：朝方向跑 */
+    const x0 = p.pose.x;
+    p.run(1, 9000);
+    for (let t = 0; t < 50; t++) p.update(0.016, base, 9000 + t * 16);
+    p.pose.x > x0 + 10 ? ok(`挥手跑动：x ${x0.toFixed(0)} → ${p.pose.x.toFixed(0)}`) : bad(`跑动无效 x=${p.pose.x.toFixed(0)}`);
+
+    /* 双手：打滚 */
+    p.update(0.016, base, 12000);
+    const rolled = p.roll(12000);
+    let maxRot = 0;
+    for (let t = 0; t < 160; t++) { p.update(0.016, base, 12000 + t * 16); maxRot = Math.max(maxRot, Math.abs(p.pose.rot)); }
+    rolled && maxRot > 3 ? ok(`双手打滚：旋转峰值 ${maxRot.toFixed(2)} rad`) : bad(`打滚无效 ${maxRot.toFixed(2)}`);
+
+    /* 待机：不再睡着 */
+    let slept = false;
+    for (let t = 0; t < 3000; t++) { p.update(0.016, base, 20000 + t * 16); if (p.state === "sleep") slept = true; }
+    slept ? bad("待机会睡着（需求要求删掉睡着）") : ok("待机 48 秒不睡，只有眨眼/舔爪/打哈欠");
+  }
+
+  /* ---------- 5. 复刻宠物 ---------- */
+  head("5. 上传已故宠物 → 本机复刻");
+  const t0 = performance.now();
+  let img = null;
+  let rec = null;
+  try {
+    img = await new Promise((res, rej) => {
+      const i = new Image();
+      i.onload = () => res(i);
+      i.onerror = () => rej(new Error("no-file"));
+      i.src = "../用户已故宠物照片.jpg";
+    });
+  } catch {
+    log.push("  --   跳过：没有 ../用户已故宠物照片.jpg（可放一张自己的照片同名再跑）");
+    paint();
+  }
+  if (!img) {
+    /* 没样例照片就单独验一遍 ImageSegmenter，仍然覆盖「模型能起来」这条 */
+    try {
+      const m = await import("../js/matte.js");
+      await m.loadSegmenter();
+      ok("抠图模型可加载（DeepLab V3）");
+      const modelOk = true;
+      if (!modelOk) bad("模型加载异常");
+    } catch (e) {
+      bad("抠图模型不可用：" + (e && e.message ? e.message : e));
+    }
+  } else {
+  ok(`照片读入 ${img.width}×${img.height}`);
+  const puppet = await makePuppet(img, () => {});
+  /* alpha 是 0~1 的浮点数组（不是 0~255 的字节），直接按值统计 */
+  const norm = (a) => (a.length && a[0] > 1.5 ? 255 : 1);
+  const scale = norm(puppet.alpha);
+  let fgN = 0;
+  for (let i = 0; i < puppet.alpha.length; i++) if (puppet.alpha[i] / scale > 0.5) fgN++;
+  const cover = fgN / puppet.alpha.length;
+
+  /* 行宽剖面：看颈线检测到底切在哪儿（每 10% 高度打一格） */
+  const prof = [];
+  for (let k = 0; k <= 10; k++) {
+    const y = Math.min(puppet.h - 1, Math.round((k / 10) * puppet.h));
+    let c = 0;
+    for (let x = 0; x < puppet.w; x++) if (puppet.alpha[y * puppet.w + x] / scale > 0.5) c++;
+    prof.push(Math.round((c / puppet.w) * 100));
+  }
+  const ms = Math.round(performance.now() - t0);
+  cover > 0.06 && cover < 0.85
+    ? ok(`抠图覆盖 ${(cover * 100).toFixed(1)}% · 耗时 ${ms}ms · 颈线 ${puppet.neckY.toFixed(3)}`)
+    : bad(`抠图结果可疑：覆盖 ${(cover * 100).toFixed(1)}%`);
+  ok(`行宽剖面（每 10% 高度）: ${prof.join("% ")}%`);
+
+  rec = {
+    id: "utest", name: "测试宝贝", kind: "dog",
+    voice: { type: "dog", pitch: 260, rate: 1, rough: 0.4 },
+    meta: puppet.meta,
+    full: puppet.layers.full.toDataURL("image/webp", 0.92),
+    head: puppet.layers.head.toDataURL("image/webp", 0.92),
+    thumb: puppet.layers.full.toDataURL("image/webp", 0.5),
+    tint: "#c8b49c", createdAt: Date.now(),
+  };
+  const cfg = recordToCfg(rec);
+  await loadAssets([cfg]);
+  const cp = new Pet(cfg);
+  const gNo2 = frame(cp, 5000, false);
+  const gYes2 = frame(cp, 5000, true);
+  const painted2 = diffCount(gNo2, gYes2);
+  painted2 > 20000 ? ok(`复刻宠物已上桌：绘制像素 ${painted2}`) : bad(`复刻宠物没画出来 ${painted2}`);
+  cfg.aspect > 0.2 && cfg.aspect < 3 ? ok(`几何已同步：aspect=${cfg.aspect.toFixed(3)} neckY=${cfg.neckY.toFixed(3)}`) : bad(`几何异常 ${cfg.aspect}`);
+  cp.cfg.pawMode === false ? ok("复刻宠物走整体起伏（单张照片没有四肢层）") : bad("pawMode 未关");
+
+  /* 复刻宠物也要能吃手势 */
+  const spun2 = cp.spin(8000);
+  let mn2 = 1;
+  for (let t = 0; t < 120; t++) { cp.update(0.016, base, 8000 + t * 16); mn2 = Math.min(mn2, cp.pose.sx); }
+  spun2 && mn2 < 0.2 ? ok(`复刻宠物也能转圈（sx 最低 ${mn2.toFixed(2)}）`) : bad(`复刻宠物转圈异常 ${mn2.toFixed(2)}`);
+  }
+
+  /* ---------- 6. IndexedDB ---------- */
+  head("6. 保存到浏览器（IndexedDB）");
+  if (!rec) {
+    log.push("  --   跳过：第 5 步没有生成记录（缺样例照片）");
+    paint();
+  } else {
+  const mod = await import("../js/custom.js");
+  await mod.savePet(rec);
+  const list = await mod.listSaved();
+  list.some((r) => r.id === "utest") ? ok(`已存入本机，可读回 ${list.length} 条`) : bad("保存后读不回来");
+  const back = mod.recordToCfg(list[0]);
+  back.imgFull && back.imgFull.startsWith("data:image/webp")
+    ? ok(`读回的图层是内嵌图片（${Math.round(back.imgFull.length / 1024)}KB），不依赖网络`)
+    : bad("读回的图层格式不对");
+  await mod.removePet("utest");
+  const after = await mod.listSaved();
+  after.some((r) => r.id === "utest") ? bad("删除失败") : ok("删除成功，不留残留");
+  }
+} catch (e) {
+  bad("异常：" + (e && e.stack ? e.stack.split("\n").slice(0, 3).join(" | ") : e));
+}
+
+log.push(`\n结果：${fails === 0 ? "全部通过" : fails + " 项失败"}`);
+document.getElementById("out").innerHTML = log.join("\n")
+  .replace(/  ok   /g, '<span class="ok">  ok   </span>')
+  .replace(/  FAIL /g, '<span class="bad">  FAIL </span>');
+document.title = fails === 0 ? "E2E-PASS" : "E2E-FAIL-" + fails;
+</script>

@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.vercel/
+.env
+.env.*
+!.env.example
+refs/
+用户已故宠物照片.jpg
+*.log
+.DS_Store
+Thumbs.db

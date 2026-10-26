@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fbf6ee">
+<title>隔空撸宠 · 写实实景手势宠物</title>
+<meta name="description" content="用摄像头隔空摸猫：MediaPipe 手部 21 点识别 + 真实实拍宠物照片，宠物站在家里的桌面上，光从同一扇窗照进来。纯前端单页，可直接 iframe 嵌入。">
+<link rel="stylesheet" href="./css/app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><g fill='%23e0926f'><ellipse cx='16' cy='21' rx='7' ry='6'/><circle cx='8' cy='12' r='3.2'/><circle cx='13' cy='8' r='3.2'/><circle cx='19' cy='8' r='3.2'/><circle cx='24' cy='12' r='3.2'/></g></svg>">
+</head>
+<body>
+<div class="app">
+
+  <header class="bar">
+    <div class="brand">
+      <b id="bloomTag">隔空撸宠</b>
+      <span class="sub">GESTURE PET</span>
+    </div>
+    <nav class="pets" id="pets" aria-label="切换宠物"></nav>
+    <button class="adopt" id="adopt" type="button">
+      <span class="plus" aria-hidden="true">＋</span>上传我的专属宠物
+    </button>
+    <button class="gear" id="gear" type="button" aria-label="设置">设置</button>
+  </header>
+
+  <div class="stageWrap">
+    <canvas id="stage" aria-label="宠物画面"></canvas>
+
+    <!-- 摄像头小窗：视频显示骨架，canvas 只画关键点 -->
+    <div class="pip" id="pip">
+      <video id="cam" playsinline muted autoplay></video>
+      <canvas id="pipCanvas"></canvas>
+    </div>
+
+    <div class="hud" id="hud">待机中</div>
+    <div class="toast" id="toast"></div>
+
+    <div class="panel" id="panel">
+      <div class="row">
+        <span>触摸灵敏度</span>
+        <input type="range" id="sens" min="0" max="100" step="1" aria-label="触摸灵敏度">
+      </div>
+      <div class="row">
+        <span>音效音量</span>
+        <input type="range" id="vol" min="0" max="100" step="1" aria-label="音效音量">
+      </div>
+      <label class="row check"><input type="checkbox" id="showPts"> 显示手部关键点</label>
+      <label class="row check"><input type="checkbox" id="showCam"> 显示摄像头预览</label>
+      <div class="row">
+        <span>摄像头</span>
+        <select id="camSel" aria-label="选择摄像头"></select>
+      </div>
+      <button class="ghost" id="bloomBtn" type="button">开花彩蛋 · F</button>
+      <p class="tip">键盘 1–7 换宠物，H 干净模式，鼠标可以直接摸。</p>
+    </div>
+
+    <div class="start" id="start">
+      <div class="card">
+        <h1>隔空撸宠</h1>
+        <p>把手伸到摄像头前，摸摸它。</p>
+        <div class="btns">
+          <button id="startCam" class="primary" type="button">开启摄像头</button>
+          <button id="startDemo" type="button">先看看</button>
+        </div>
+        <button class="adoptInline" id="adoptStart" type="button">
+          上传我的专属宠物 · 让它再陪你一会儿
+        </button>
+        <small id="startMsg">画面只在本机处理，不会上传任何数据</small>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
