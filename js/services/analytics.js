@@ -3,6 +3,7 @@ import { summarizeEvents } from "./metrics.js";
 
 const GUEST_KEY = "gesture-pet:guest-id";
 const QUEUE_KEY = "gesture-pet:analytics-events";
+const LOCAL_KEY = "gesture-pet:local-events";
 
 function safeGet(storage, key) {
   try {
@@ -41,7 +42,13 @@ export function createAnalytics({
   createId = defaultId,
   autoFlush = true,
 } = {}) {
-  const localEvents = [];
+  let localEvents = [];
+  try {
+    const restored = JSON.parse(storage?.getItem(LOCAL_KEY) || "[]");
+    if (Array.isArray(restored)) localEvents = restored.slice(-500);
+  } catch {
+    localEvents = [];
+  }
   let guestId = safeGet(storage, GUEST_KEY);
   let session = null;
   let startedAt = null;
@@ -117,6 +124,7 @@ export function createAnalytics({
     const event = normalize(eventType, payload);
     localEvents.push(event);
     if (localEvents.length > 500) localEvents.splice(0, localEvents.length - 500);
+    safeSet(storage, LOCAL_KEY, JSON.stringify(localEvents));
     return queue.enqueue(event);
   }
 

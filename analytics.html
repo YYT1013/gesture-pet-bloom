@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f8f4ec">
+  <title>互动数据 · 隔空撸宠</title>
+  <meta name="description" content="隔空撸宠匿名互动指标看板。">
+  <link rel="stylesheet" href="./css/analytics.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="index.html" aria-label="返回隔空撸宠">
+      <span class="brandMark" aria-hidden="true">✿</span>
+      <span><b>指尖开花</b><small>互动数据</small></span>
+    </a>
+    <div class="actions">
+      <span class="source" id="source">读取中</span>
+      <button id="refresh" type="button">刷新</button>
+      <a class="back" href="index.html">返回互动</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="intro">
+      <p class="eyebrow">GESTURE PET / ANALYTICS</p>
+      <h1>每一次隔空触摸，都有迹可循</h1>
+      <p class="lede">匿名聚合互动指标，用于展示手势识别效果、宠物偏好和演示参与度。</p>
+    </section>
+    <section id="dashboard" aria-live="polite"></section>
+  </main>
+
+  <script type="module" src="./js/analytics-page.js"></script>
+</body>
+</html>

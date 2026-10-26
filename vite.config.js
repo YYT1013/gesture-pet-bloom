@@ -8,6 +8,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(process.cwd(), "index.html"),
+        analytics: resolve(process.cwd(), "analytics.html"),
       },
     },
   },

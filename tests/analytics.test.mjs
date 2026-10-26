@@ -85,3 +85,27 @@ test("stop records session duration and flushes the final batch", async () => {
   assert.equal(end.value, 45000);
   assert.equal(sent.length, 2);
 });
+
+test("local-only analytics restores its summary on the dashboard page", async () => {
+  const storage = memoryStorage({ "gesture-pet:guest-id": "guest-persisted" });
+  const first = createAnalytics({
+    repository: null,
+    storage,
+    now: () => new Date("2026-10-26T08:00:00.000Z"),
+    createId: () => "session-one",
+    autoFlush: false,
+  });
+  await first.start({ page: "/" });
+  first.track("touch_started", { petId: "corgi", zone: "head" });
+
+  const second = createAnalytics({
+    repository: null,
+    storage,
+    now: () => new Date("2026-10-26T08:01:00.000Z"),
+    createId: () => "session-two",
+    autoFlush: false,
+  });
+  await second.start({ page: "/analytics.html" });
+
+  assert.equal(second.localSummary().pet_counts.corgi, 1);
+});
