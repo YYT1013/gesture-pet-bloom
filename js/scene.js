@@ -15,7 +15,10 @@
  *   · SkywardSyntax/LightingEngine —— 环境光遮蔽（AO）与径向光衰减的 Canvas 实现
  * ============================================================ */
 
+import { asDirectoryUrl } from "./asset-url.js";
+
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const DEFAULT_SCENE_BASE = asDirectoryUrl(new URL("../assets/scene/", import.meta.url).href);
 
 export const SCENE = {
   /* 光源在画面里的位置（左上角窗户方向），影子朝右下投 */
@@ -42,7 +45,7 @@ function loadImage(src) {
 /** 加载横竖两张底图（共约 300 KB）
  *  默认路径按「模块自身位置」算，不是按页面位置算 ——
  *  这样页面放在子目录（比如 tools/ 下的自检页）也不会 404。 */
-export async function loadScene(base = new URL("../assets/scene/", import.meta.url).href) {
+export async function loadScene(base = DEFAULT_SCENE_BASE) {
   try {
     const [land, port] = await Promise.all([
       loadImage(base + "desk-land.webp"),

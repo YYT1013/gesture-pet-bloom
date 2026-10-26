@@ -23,6 +23,9 @@
  * ============================================================ */
 
 import { FilesetResolver, ImageSegmenter } from "../lib/vision_bundle.mjs";
+import { asDirectoryUrl } from "./asset-url.js";
+
+const WASM_BASE = asDirectoryUrl(new URL("../lib/wasm", import.meta.url).href);
 
 /* DeepLab V3 / Pascal VOC 类别下标 */
 const CLS = { bg: 0, cat: 8, dog: 12 };
@@ -37,7 +40,7 @@ export async function loadSegmenter(onMsg) {
 
   segLoading = (async () => {
     onMsg && onMsg("正在准备抠图模型…");
-    const fileset = await FilesetResolver.forVisionTasks(new URL("../lib/wasm", import.meta.url).href);
+    const fileset = await FilesetResolver.forVisionTasks(WASM_BASE);
     const make = (delegate) =>
       ImageSegmenter.createFromOptions(fileset, {
         baseOptions: { modelAssetPath: new URL("../models/pet_segmenter.tflite", import.meta.url).href, delegate },

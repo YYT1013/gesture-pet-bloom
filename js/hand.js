@@ -12,6 +12,9 @@
 
 import { FilesetResolver, HandLandmarker } from "../lib/vision_bundle.mjs";
 import { LM, GEST } from "./config.js";
+import { asDirectoryUrl } from "./asset-url.js";
+
+const WASM_BASE = asDirectoryUrl(new URL("../lib/wasm", import.meta.url).href);
 
 /* ---------- One Euro 滤波器 ----------
  * minCutoff 越小越稳、beta 越大越跟手。dCutoff 是速度的滤波。
@@ -86,7 +89,7 @@ export class HandTracker {
   /* ---------- 模型加载 ---------- */
   async load() {
     if (this.ready) return;
-    const fileset = await FilesetResolver.forVisionTasks(new URL("../lib/wasm", import.meta.url).href);
+    const fileset = await FilesetResolver.forVisionTasks(WASM_BASE);
     const opts = (delegate) => ({
       baseOptions: { modelAssetPath: new URL("../models/hand_landmarker.task", import.meta.url).href, delegate },
       runningMode: "VIDEO",

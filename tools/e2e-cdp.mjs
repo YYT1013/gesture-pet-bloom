@@ -18,7 +18,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
 
 const PORT = 9333;
-const BASE = process.env.PET_BASE || "http://localhost:8766";
+const BASE = process.env.PET_BASE || "http://127.0.0.1:4173";
 const EDGE = [
   "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
   "C:/Program Files/Microsoft/Edge/Application/msedge.exe",
@@ -125,6 +125,22 @@ try {
     const { data } = await send("Page.captureScreenshot", { format: "jpeg", quality: 90 });
     writeFileSync("docs/live-phone.jpg", Buffer.from(data, "base64"));
     console.log("已截图 docs/live-phone.jpg");
+
+    /* 数据看板：先写一条本地统计，再截桌面与手机视图 */
+    await send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+    await goto(`${BASE}/index.html?demo=1`);
+    await waitFor('Boolean(window.__pet && window.__pet.analytics)', 20000, "分析服务启动");
+    await evaluate('window.__pet.analytics.track("touch_started", { petId: "orange" }), window.__pet.analytics.track("gesture_triggered", { petId: "orange", gesture: "wave" }), 1');
+    await goto(`${BASE}/analytics.html`);
+    await waitFor('document.querySelectorAll(".metricCard").length === 6', 20000, "数据看板渲染");
+    const desktopDash = await send("Page.captureScreenshot", { format: "jpeg", quality: 90 });
+    writeFileSync("docs/analytics-desktop.jpg", Buffer.from(desktopDash.data, "base64"));
+    await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+    await goto(`${BASE}/analytics.html`);
+    await waitFor('document.querySelectorAll(".metricCard").length === 6', 20000, "手机数据看板渲染");
+    const phoneDash = await send("Page.captureScreenshot", { format: "jpeg", quality: 90 });
+    writeFileSync("docs/analytics-phone.jpg", Buffer.from(phoneDash.data, "base64"));
+    console.log("已截图数据看板桌面与手机视图");
   } else if (uiCheck) {
     /* ---- 真实页面布局检查 ---- */
     const probe = `(() => {
@@ -164,8 +180,23 @@ try {
     })()`;
 
     await goto(`${BASE}/index.html?demo=1&pet=1`);
-    await sleep(2200);
+    await waitFor('Boolean(window.__pet && window.__pet.scene.ready)', 20000, "首页实景加载");
+    await sleep(350);
     const before = JSON.parse(await evaluate(probe));
+    const canvasAlive = await evaluate(`(() => {
+      const c = document.getElementById("stage");
+      const g = c.getContext("2d");
+      const d = g.getImageData(0, 0, c.width, c.height).data;
+      let low = 255, high = 0;
+      for (let y = 0; y < c.height; y += 120) {
+        for (let x = 0; x < c.width; x += 120) {
+          const i = (y * c.width + x) * 4;
+          low = Math.min(low, d[i], d[i + 1], d[i + 2]);
+          high = Math.max(high, d[i], d[i + 1], d[i + 2]);
+        }
+      }
+      return high - low > 20;
+    })()`);
     /* 点「上传我的专属宠物」看弹窗 */
     await evaluate('document.getElementById("adopt").click(), 1');
     await sleep(600);
@@ -182,6 +213,7 @@ try {
       ["隐私提示文案", after.privacy.includes("不会保存") && after.privacy.includes("不会泄露") ? "包含两项承诺" : after.privacy, after.privacy.includes("不会保存")],
       ["横向溢出", before.docWide ? before.overflow.join(",") : "无", before.docWide === false],
       ["首个 chip 可滚到", before.firstChipOK ? "是" : "否", before.firstChipOK === true],
+      ["画布非空白", canvasAlive ? "是" : "否", canvasAlive === true],
     ];
     let f = 0;
     for (const [k, v, okFlag] of rows) {
@@ -192,11 +224,29 @@ try {
     /* 手机竖屏 */
     await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
     await goto(`${BASE}/index.html?demo=1&pet=1`);
-    await sleep(2200);
+    await waitFor('Boolean(window.__pet && window.__pet.scene.ready)', 20000, "手机实景加载");
+    await sleep(350);
     const m = JSON.parse(await evaluate(probe));
     const mOk = m.docWide === false && m.chips === 7 && m.firstChipOK === true;
     if (!mOk) f++;
     console.log(`${mOk ? "  ok  " : "  FAIL"}  手机 390×844：chip ${m.chips} 个 · 溢出 ${m.docWide ? m.overflow.join(",") : "无"} · 画布 ${m.canvas.w}×${m.canvas.h}`);
+
+    /* 数据看板：先写一条本地互动，确认跨页面汇总和移动端布局 */
+    await send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+    await goto(`${BASE}/index.html?demo=1`);
+    await waitFor('Boolean(window.__pet && window.__pet.analytics)', 20000, "分析服务启动");
+    await evaluate('window.__pet.analytics.track("touch_started", { petId: "orange", metadata: { zone: "head" } }), 1');
+    await goto(`${BASE}/analytics.html`);
+    await waitFor('document.querySelectorAll(".metricCard").length === 6', 20000, "数据看板渲染");
+    const dashboard = await evaluate(`(() => ({
+      metrics: document.querySelectorAll(".metricCard").length,
+      source: document.getElementById("source").textContent,
+      interactions: [...document.querySelectorAll(".metricCard")].map((n) => n.innerText).join(" | "),
+      overflow: document.documentElement.scrollWidth > innerWidth + 1
+    }))()`);
+    const dashboardOk = dashboard.metrics === 6 && dashboard.interactions.includes("互动次数") && !dashboard.overflow;
+    if (!dashboardOk) f++;
+    console.log(`${dashboardOk ? "  ok  " : "  FAIL"}  数据看板：${dashboard.metrics} 个指标 · ${dashboard.source} · 溢出 ${dashboard.overflow ? "有" : "无"}`);
     console.log(f ? `\n布局问题 ${f} 项` : "\n布局全部正常");
     exitCode = f ? 1 : 0;
   } else {

@@ -21,6 +21,7 @@
  * ============================================================ */
 
 import { SCENE } from "./scene.js";
+import { asDirectoryUrl } from "./asset-url.js";
 
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
 
@@ -42,7 +43,7 @@ let META = null;
 
 /* 素材根目录：按模块自身位置算（js/render.js → 项目根），
    这样页面放在子目录里也不会把 ./assets 解析到错的地方 */
-const ROOT = new URL("../", import.meta.url).href;
+const ROOT = asDirectoryUrl(new URL("../", import.meta.url).href);
 
 function loadImg(url) {
   return new Promise((resolve, reject) => {
