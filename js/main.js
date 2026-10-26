@@ -27,6 +27,9 @@ import { Sound } from "./audio.js";
 import { drawBloom, BLOOMS } from "./bloom.js";
 import { buildUI } from "./ui.js";
 import { initCustom, listSaved, recordToCfg, removePet } from "./custom.js";
+import { createAnalytics } from "./services/analytics.js";
+import { createSupabaseRepository, getSupabaseConfigFromEnv } from "./services/supabase.js";
+import { shouldTrackTouch } from "./services/event-rules.js";
 
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -80,6 +83,28 @@ const state = {
   showFps: false,
 };
 
+/* ---------------- 匿名互动分析 ----------------
+ * 只上传统计事件，不上传摄像头画面、照片或宠物图层。Supabase 未配置时
+ * 自动保留本地统计，所有互动功能保持原样。 */
+const analyticsConfig = getSupabaseConfigFromEnv();
+let analyticsRepository = null;
+if (analyticsConfig.configured) {
+  try {
+    analyticsRepository = createSupabaseRepository(analyticsConfig);
+  } catch (error) {
+    console.warn("[analytics] Supabase 初始化失败，切换到本地统计", error);
+  }
+}
+const analytics = createAnalytics({ repository: analyticsRepository });
+analytics.start({
+  page: location.pathname + location.search,
+  device: {
+    language: navigator.language,
+    viewport: `${window.innerWidth}x${window.innerHeight}`,
+    dpr: Math.round((window.devicePixelRatio || 1) * 10) / 10,
+  },
+}).catch(() => {});
+
 const sensValue = () => lerp(TOUCH.sensMin, TOUCH.sensMax, state.sensNorm);
 
 let pet = new Pet(pets[0]);
@@ -123,6 +148,7 @@ async function selectPet(i) {
     await loadAssets([cfg]).catch(() => {});
     pet = new Pet(cfg);
     ui.setPet(i);
+    analytics.track("pet_selected", { petId: cfg.id });
   }
 }
 
@@ -147,6 +173,7 @@ const ui = buildUI(pets, {
     state.bloomMode = !state.bloomMode;
     ui.setBloomMode(state.bloomMode);
     ui.toast(state.bloomMode ? `开花彩蛋 · ${BLOOMS[state.bloomType].name}` : "回到撸宠");
+    analytics.track("bloom_toggled", { value: state.bloomMode ? 1 : 0 });
   },
   onAdopt() { custom.open(); },
   async onStart(withCamera) {
@@ -157,6 +184,7 @@ const ui = buildUI(pets, {
     if (!withCamera) {
       state.demo = true;
       ui.toast("鼠标 = 手指，直接划过宠物就行");
+      analytics.track("demo_started");
       return;
     }
     try {
@@ -165,11 +193,13 @@ const ui = buildUI(pets, {
       ui.setCameraState(true);
       ui.toast(`${st.width}×${st.height} · 把手伸进画面`);
       refreshCameras();
+      analytics.track("camera_started", { metadata: { width: st.width, height: st.height } });
     } catch (err) {
       console.error(err);
       state.demo = true;
       ui.startError(hint(err));
       ui.hideStart();
+      analytics.track("camera_failed", { metadata: { name: err?.name || "UnknownError" } });
     }
   },
 });
@@ -259,10 +289,16 @@ hand.onWave = (slot, dir) => {
   if (state.bloomMode) return;
   pet.run(dir, NOW);
   ui.toast(dir > 0 ? "往右跑 →" : "← 往左跑");
+  analytics.track("gesture_triggered", { petId: pet.cfg.id, gesture: "wave", metadata: { direction: dir } });
+  analytics.track("pet_action", { petId: pet.cfg.id, gesture: "run" });
 };
 hand.onOpen = () => {
   if (state.bloomMode) return;
-  if (pet.spin(NOW)) ui.toast("转了一圈");
+  if (pet.spin(NOW)) {
+    ui.toast("转了一圈");
+    analytics.track("gesture_triggered", { petId: pet.cfg.id, gesture: "open_palm" });
+    analytics.track("pet_action", { petId: pet.cfg.id, gesture: "spin" });
+  }
 };
 
 /* ---------------- 听音效事件 ---------------- */
@@ -284,6 +320,7 @@ let frameMs = 16;
 let slowFrames = 0;
 let degraded = 0;
 let errOnce = false;
+let lastContact = false;
 
 function frame(now) {
   NOW = now;
@@ -324,6 +361,14 @@ function tick(dt, now) {
   const info = main
     ? { ...main, twoHands }
     : { active: false, zone: null, d: 9, lx: 0, ly: 0, brushing: false, tap: false, twoHands: false };
+
+  if (shouldTrackTouch(lastContact, info.contact)) {
+    analytics.track("touch_started", {
+      petId: pet.cfg.id,
+      metadata: { zone: info.zone, brushing: Boolean(info.brushing), two_hands: Boolean(info.twoHands) },
+    });
+  }
+  lastContact = Boolean(info.contact);
 
   /* 2. 宠物 */
   pet.update(dt, info, now);
@@ -447,6 +492,7 @@ window.addEventListener("keydown", (e) => {
     state.bloomMode = !state.bloomMode;
     ui.setBloomMode(state.bloomMode);
     ui.toast(state.bloomMode ? "开花彩蛋" : "回到撸宠");
+    analytics.track("bloom_toggled", { value: state.bloomMode ? 1 : 0 });
   }
   if (k === "b" || k === "B") {
     state.bloomType = (state.bloomType + 1) % BLOOMS.length;
@@ -462,10 +508,27 @@ window.addEventListener("keydown", (e) => {
 
   /* 无摄像头时手动触发手势，方便验收 */
   if (state.bloomMode) return;
-  if (k === "z" || k === "Z") { if (pet.spin(NOW)) ui.toast("张开手 · 转一圈"); }
-  if (k === "x" || k === "X") { pet.roll(NOW); ui.toast("双手 · 打滚"); }
-  if (k === ",") { pet.run(-1, NOW); ui.toast("← 往左跑"); }
-  if (k === ".") { pet.run(1, NOW); ui.toast("往右跑 →"); }
+  if (k === "z" || k === "Z") {
+    if (pet.spin(NOW)) {
+      ui.toast("张开手 · 转一圈");
+      analytics.track("pet_action", { petId: pet.cfg.id, gesture: "spin" });
+    }
+  }
+  if (k === "x" || k === "X") {
+    pet.roll(NOW);
+    ui.toast("双手 · 打滚");
+    analytics.track("pet_action", { petId: pet.cfg.id, gesture: "roll" });
+  }
+  if (k === ",") {
+    pet.run(-1, NOW);
+    ui.toast("← 往左跑");
+    analytics.track("pet_action", { petId: pet.cfg.id, gesture: "run", metadata: { direction: -1 } });
+  }
+  if (k === ".") {
+    pet.run(1, NOW);
+    ui.toast("往右跑 →");
+    analytics.track("pet_action", { petId: pet.cfg.id, gesture: "run", metadata: { direction: 1 } });
+  }
 });
 
 window.addEventListener("keydown", (e) => {
@@ -477,6 +540,8 @@ window.addEventListener("keydown", (e) => {
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) last = 0;
 });
+
+window.addEventListener("pagehide", () => { analytics.stop(); });
 
 /* ---------------- URL 参数 ----------------
  *   ?pet=3        第 4 只
@@ -498,12 +563,14 @@ document.addEventListener("visibilitychange", () => {
   if (q.has("bloom")) {
     state.bloomMode = true;
     ui.setBloomMode(true);
+    analytics.track("bloom_toggled", { value: 1, metadata: { source: "url" } });
   }
   if (q.has("fps")) state.showFps = true;
   if (q.has("demo")) {
     state.demo = true;
     state.started = true;
     ui.hideStart();
+    analytics.track("demo_started", { metadata: { source: "url" } });
   }
   if (q.has("upload")) setTimeout(() => custom.open(), 600);
 }
@@ -515,5 +582,5 @@ window.__pet = {
   get pets() { return pets; },
   get pet() { return pet; },
   get scene() { return SCENE; },
-  selectPet, custom, removePet,
+  selectPet, custom, removePet, analytics,
 };
