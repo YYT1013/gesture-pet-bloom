@@ -1,4 +1,4 @@
-# 隔空撸宠 · Gesture Pet
+# 指尖开花 · 隔空撸宠 Gesture Pet
 
 对着摄像头伸手，隔空摸一只**实拍的**猫 —— 它站在你家的桌面上，光从同一扇窗照进来。
 
@@ -7,7 +7,7 @@
 
 **不在了的那一只，也可以上传一张照片，让它再陪你一会儿。**（本机复刻，不上云，见第六节）
 
-**纯前端单页 · 无后端 · 无外网请求 · 可直接 iframe 嵌入个人网站**
+**Vite + 原生 JavaScript · 浏览器本地手势识别 · 可选 Supabase 匿名统计 · 可直接 iframe 嵌入个人网站**
 
 - 识别：MediaPipe Hand Landmarker（21 个关键点，跑在本地浏览器里，画面不上传）
 - 素材：**7 张实拍照片**抠成「照片木偶」，不是插画、不是手绘
@@ -24,28 +24,41 @@
 
 ## 一、三分钟跑起来
 
+运行环境：Node.js 20.19+、npm 10+，推荐 Chrome 或 Edge。首次运行先安装依赖：
+
+```bash
+npm install
+```
+
 ### Windows
 
-双击 `START-Windows.bat`，浏览器会自动打开 `http://localhost:8766`。
-会弹一个黑窗口，玩的时候别关。
+双击 `START-Windows.bat`。脚本优先运行 `npm run dev` 并打开 `http://127.0.0.1:4173/`；
+如果本机没有 npm 或依赖尚未安装，会自动回退到无需依赖的静态服务器 `http://localhost:8766/`。
+会弹一个黑窗口，演示时别关。
 
 ### macOS / Linux
 
 ```bash
 cd 隔空撸宠项目
-python3 tools/serve.py           # 自动开浏览器，Ctrl+C 停止
+npm install
+npm run dev -- --host 127.0.0.1 --port 4173
 ```
 
-（别用 `python3 -m http.server`：它把 `.mjs` 当成 `text/plain`，浏览器会拒绝加载模块。
- `tools/serve.py` 就是为补这个 MIME 写的，顺便会自动挑一个没被占用的端口。）
+浏览器打开 `http://127.0.0.1:4173/`。Ctrl+C 停止服务。没有 Node 时可运行
+`python3 tools/serve.py` 作为离线兜底；不要直接用 `python3 -m http.server`，它可能把 `.mjs`
+当成 `text/plain`，导致浏览器拒绝加载模块。
 
-### 放到你的静态托管 / 服务器
+### 构建与静态托管
 
-把整个文件夹（除 `tools/`、`refs/` 之外都行）上传，访问 `index.html` 即可。
+```bash
+npm run build
+```
 
-> **上传前先删两样东西**：`refs/`（7 张原始照片）和根目录的 `用户已故宠物照片.jpg`
-> （自测用的样例）。它们是**本地素材**，网页运行时不需要，但放在站点目录里就等于公开了。
-> 宠物需要的那 28 张 webp 已经在 `assets/pets/` 里，删掉原图不影响显示。
+构建结果在 `dist/`，把它部署到静态托管即可。Vite 负责打包页面和脚本，构建脚本会额外把
+`assets/`、`models/`、`lib/` 原样复制进 `dist/`。不要在源码根目录直接上传后依赖 `file://` 打开。
+
+> `dist/` 只包含网页和运行时资源，`refs/` 原始照片与根目录测试照片不会进入构建产物。
+> 发布时只上传 `dist/`，不要把整个源码目录上传到公开静态站点。
 
 > **不能直接双击 `index.html`。**
 > ES Module 和 wasm 在 `file://` 协议下会被浏览器安全策略拦住，页面会一直停在启动页。
@@ -54,6 +67,24 @@ python3 tools/serve.py           # 自动开浏览器，Ctrl+C 停止
 第一次打开点「开启摄像头」，允许权限，把手伸到镜头前：
 画面右下角出现小窗、手上出现骨架线，就可以开始摸了。
 没有摄像头（或不想开）就点「先看看」，**鼠标就是你的手指**，一样能摸。
+
+### 互动数据与 Supabase（可选）
+
+顶栏「数据」进入 `analytics.html`。未配置 Supabase 时看板读取本机 `localStorage`，适合离线演示；
+配置后匿名会话和互动事件会写入云端，看板通过只读聚合 RPC 展示数据。
+
+```bash
+# 1. 在 Supabase SQL Editor 执行 supabase/schema.sql
+# 2. 在项目根目录创建 .env.local
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-public-anon-key
+
+# 3. 重启开发服务器
+npm run dev
+```
+
+浏览器端只会使用 Supabase 公开 anon key，绝不能放入 service role key。完整步骤和验收命令见
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)，答辩讲解见 [`docs/competition-guide.md`](docs/competition-guide.md)。
 
 ---
 
@@ -476,8 +507,12 @@ d = (k - 1) * min(rx, ry)           // <0 在身体里，>0 在外面
 
 ```
 隔空撸宠项目/
-├── index.html              单页入口（iframe 直接指向它；只加了「上传我的专属宠物」按钮）
+├── index.html              互动单页入口（含上传入口和数据看板链接）
+├── analytics.html          匿名互动数据看板
+├── package.json            Vite 脚本、依赖和 Node 版本要求
+├── vercel.json             Vercel 构建与 wasm MIME 配置
 ├── css/app.css             全部样式（无外网字体）+ 上传面板样式
+├── css/analytics.css       数据看板样式
 ├── js/
 │   ├── config.js           7 只宠物参数 + 触摸/手势阈值（调参第一站）
 │   ├── hand.js             MediaPipe 加载、摄像头、21 点平滑、挥手 + 开掌检测
@@ -490,7 +525,10 @@ d = (k - 1) * min(rx, ry)           // <0 在身体里，>0 在外面
 │   ├── audio.js            四声线 WebAudio 合成 + 压缩器响度归一
 │   ├── bloom.js            「指尖开花」彩蛋
 │   ├── ui.js               顶栏、宠物条、设置面板、HUD
-│   └── main.js             总装配 + 主循环 + 性能降级
+│   ├── services/           匿名会话、事件队列、聚合指标和 Supabase 适配
+│   ├── analytics-page.js   看板入口
+│   ├── dashboard-view.js   安全 DOM 渲染和数据条形图
+│   └── main.js             总装配 + 主循环 + 性能降级 + 埋点
 ├── assets/pets/            7 只宠物 × 4 层 webp + meta.json（28 张，共 0.43 MB）
 ├── assets/scene/           桌面实景 desk-land.webp（横）+ desk-port.webp（竖），共 0.3 MB
 ├── refs/                   7 张原始实拍照片（重新生成素材用）
@@ -503,8 +541,10 @@ d = (k - 1) * min(rx, ry)           // <0 在身体里，>0 在外面
 ├── tools/serve.py          macOS / Linux 同款服务器（补 .mjs MIME）
 ├── tools/test-logic.mjs    交互逻辑自测（不需要浏览器）
 ├── tools/e2e-cdp.mjs       真实浏览器验收（CDP 驱动：自检 / 截图 / 布局检查）
+├── supabase/schema.sql     数据表、RLS、匿名写入策略和聚合 RPC
+├── tests/                  Node 内置测试
+├── docs/                   答辩指南、部署说明和验收截图
 ├── START-Windows.bat       双击启动
-├── docs/                   README 配图（live-*.jpg 是真实页面截图）
 ├── LICENSE-Apache-2.0.txt  第三方许可
 └── NOTICE.txt
 ```
@@ -534,18 +574,21 @@ node tools/test-logic.mjs
 
 ### 2. 真实浏览器（连场景、抠图、IndexedDB 一起验）
 
-先起本地服务（`START-Windows.bat` 或 `python tools/serve.py`），然后：
+先起本地服务（`npm run dev -- --host 127.0.0.1 --port 4173`），然后：
 
 ```bash
+npm test                         # Node 单测 + 原有手势/宠物逻辑断言
+npm run build                    # 生产构建到 dist/
 node tools/e2e-cdp.mjs          # 26 项：实景/光影/7 只上桌/6 个手势/上传复刻/存档
-node tools/e2e-cdp.mjs ui       # 11 项：宠物条、上传弹窗、隐私文案、手机端不溢出
+node tools/e2e-cdp.mjs ui       # 宠物条、上传弹窗、非空画布、数据看板和手机端布局
 node tools/e2e-cdp.mjs shots    # 重新生成 docs/live-*.jpg 真实截图
 ```
 
 它用 CDP 驱动无头 Edge，等页面自己跑完再取结果 —— 比 `--dump-dom` 靠谱
 （后者会把计时器快进，IndexedDB 这类异步 API 永远等不到回调）。
 
-最近一次结果：**逻辑 34/34、浏览器 26/26、布局 11/11，全部通过**。
+最近一次结果以命令实际输出为准；手势、宠物、照片复刻和布局均有自动断言覆盖。物理摄像头识别仍需在
+目标机器上手动允许权限并做一次现场演示。
 
 ---
 
