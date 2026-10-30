@@ -18,7 +18,9 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
 
 const PORT = 9333;
-const BASE = process.env.PET_BASE || "http://127.0.0.1:4173";
+const args = process.argv.slice(2);
+const positionalBase = args.find((arg) => /^https?:\/\//i.test(arg));
+const BASE = (positionalBase || process.env.PET_BASE || "http://127.0.0.1:4173").replace(/\/+$/, "");
 const EDGE = [
   "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
   "C:/Program Files/Microsoft/Edge/Application/msedge.exe",
@@ -26,8 +28,8 @@ const EDGE = [
 if (!EDGE) { console.error("找不到 Edge"); process.exit(1); }
 
 const PROFILE = "C:/Users/Lenovo/AppData/Local/Temp/edgeprof_pet";
-const shots = process.argv.includes("shots");
-const uiCheck = process.argv.includes("ui");
+const shots = args.includes("shots");
+const uiCheck = args.includes("ui");
 
 const proc = spawn(EDGE, [
   "--headless=new", "--no-first-run", "--no-default-browser-check",

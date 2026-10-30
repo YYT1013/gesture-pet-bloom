@@ -143,9 +143,17 @@ CLI 需要先完成 Vercel 登录。不要把 token 写入仓库。
 线上验证至少执行以下检查：
 
 ```bash
-node tools/e2e-cdp.mjs https://<domain>
 node tools/e2e-cdp.mjs https://<domain> ui
 ```
+
+也可以使用环境变量指定线上域名，仅验证已打包页面：
+
+```powershell
+$env:PET_BASE='https://<domain>'
+node tools/e2e-cdp.mjs ui
+```
+
+线上只运行 `ui` 模式；完整自检页 `_e2e.html` 未包含在 `dist` 中。
 
 CDP 无头浏览器能验证页面、资源、画布和布局；物理摄像头权限仍需在 Chrome/Edge 中手动确认。
 
