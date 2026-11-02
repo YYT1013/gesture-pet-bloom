@@ -8,7 +8,7 @@
 | 本地生产构建 | 已验证 | 输出到 `dist/`，包含 wasm、模型和图片资源 |
 | Supabase 云端读写 | 已验证 | 匿名写入、聚合读取和 RLS 拒绝路径均已测试 |
 | GitHub 远端 | 已验证 | `YYT1013/gesture-pet-bloom`，`main` 分支 |
-| GitHub Pages 线上演示 | Actions 自动部署 | 首次工作流完成后填写最终线上验收记录 |
+| GitHub Pages 线上演示 | 已验证 | Actions 已发布；首页、看板、资源、Supabase 和移动布局通过 |
 
 线上地址：
 
@@ -183,16 +183,16 @@ CDP 无头浏览器可验证页面、资源、画布和布局；物理摄像头�
 
 ## 7. 最终验收记录
 
-首次真实 Pages 部署完成后填写，不能仅凭本地构建标记线上完成。
+2026-11-02 已完成首次真实 Pages 部署与线上回归：
 
 ```text
-Commit:
+Commit: 3820cc4
 Supabase project: gesture-pet-bloom / mrlnhdnlimaltinibjgi
-Supabase write/read:
+Supabase write/read: 通过；线上回归期间互动总数 4 -> 7
 GitHub remote: https://github.com/YYT1013/gesture-pet-bloom
-GitHub Pages URL:
-GitHub Actions run:
-Desktop camera:
-Mobile layout:
-验收人 / 时间:
+GitHub Pages URL: https://YYT1013.github.io/gesture-pet-bloom/
+GitHub Actions run: https://github.com/YYT1013/gesture-pet-bloom/actions/runs/41413911549
+Desktop camera: 线上 HTTPS 摄像头与 MediaPipe 启动通过（640x480）；物理挥动手势需现场复核
+Mobile layout: 通过；390x844 无横向溢出
+验收人 / 时间: Codex 自动化回归 / 2026-11-02
 ```
