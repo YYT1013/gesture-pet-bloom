@@ -4,20 +4,19 @@
 
 | 项目 | 状态 | 说明 |
 |---|---|---|
-| 本地 Vite 开发 | 已验证 | 首页、看板、手势演示和布局自动化可运行 |
+| 本地 Vite 开发 | 已验证 | 首页、看板、手势演示和响应式布局可运行 |
 | 本地生产构建 | 已验证 | 输出到 `dist/`，包含 wasm、模型和图片资源 |
-| 本地匿名统计 | 已验证 | 无 Supabase 时使用 `localStorage` 和看板回退 |
-| Supabase 云端读写 | 待项目凭据 | SQL 和前端适配已完成，需实际项目执行并验收 |
-| GitHub 远端 | 待账号与仓库 | 本地 Git 历史已建立，尚无远端地址 |
-| Vercel 线上演示 | 待账号授权 | 构建配置已提供，需导入项目并配置环境变量 |
+| Supabase 云端读写 | 已验证 | 匿名写入、聚合读取和 RLS 拒绝路径均已测试 |
+| GitHub 远端 | 已验证 | `YYT1013/gesture-pet-bloom`，`main` 分支 |
+| GitHub Pages 线上演示 | Actions 自动部署 | 首次工作流完成后填写最终线上验收记录 |
 
-这张表是交付边界：只有真实完成云端写入、远端推送和线上访问后，才能把对应项目改为“已验证”。
+线上地址：
 
-本次本地验收环境（2026-10-26）的实际检查结果：
+- 互动页：`https://YYT1013.github.io/gesture-pet-bloom/`
+- 数据看板：`https://YYT1013.github.io/gesture-pet-bloom/analytics.html`
 
-- `supabase projects list` 返回 `AccessTokenRequiredError`，没有项目访问凭据。
-- `vercel whoami` 返回 `Logged out`；未登录临时部署也被 Vercel 拒绝。
-- 本地 Git 没有配置任何远端，Git Credential Manager 也没有可用的 GitHub 账号。
+GitHub Pages 是可公开访问的 HTTPS 静态站点。本项目不使用 Vercel，也不需要额外部署插件；
+`main` 分支每次推送都会经过测试、构建并发布 `dist/`。
 
 ## 2. 本地运行
 
@@ -39,31 +38,46 @@ Windows 也可以双击 `START-Windows.bat`。脚本优先运行 Vite；没有 n
 
 ## 3. Supabase 配置
 
-### 3.1 创建项目并导入表结构
+### 3.1 云端项目
 
-1. 在 Supabase 新建项目，等待数据库就绪。
-2. 打开 SQL Editor，整体执行 `supabase/schema.sql`。
-3. 在 Project Settings -> API 获取 Project URL 和 public anon key。
-4. 不要使用 service role key 配置前端。
+当前项目：
+
+- 名称：`gesture-pet-bloom`
+- Project Ref：`mrlnhdnlimaltinibjgi`
+- Project URL：`https://mrlnhdnlimaltinibjgi.supabase.co`
+- 表结构与 RPC：`supabase/schema.sql`
+- 前端只使用公开 anon/publishable key，绝不使用 service role key
 
 ### 3.2 本地环境变量
 
-在项目根目录创建 `.env.local`：
+项目根目录的 `.env.local` 保留本地凭据，已被 Git 忽略：
 
 ```dotenv
-VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_URL=https://mrlnhdnlimaltinibjgi.supabase.co
 VITE_SUPABASE_ANON_KEY=your-public-anon-key
 ```
 
-重启开发服务器。`.env.local` 已在 `.gitignore` 中，不应提交。
+重启开发服务器后，互动页会使用云端匿名统计；没有配置时自动回退到 `localStorage`。
 
-### 3.3 验证真实写入和读取
+### 3.3 线上构建变量
+
+GitHub Actions 从仓库 Variables 读取以下两项：
+
+```text
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+```
+
+可在 GitHub 仓库 `Settings -> Secrets and variables -> Actions -> Variables` 设置。这里放的是浏览器构建期公开配置，不需要也不能放 service role key。变量变更后重新运行 Pages 工作流才会进入新构建。
+
+### 3.4 数据库验收
 
 1. 打开互动页，允许摄像头或点击「先看看」。
-2. 用鼠标/手势选择宠物并完成至少一次触摸。
+2. 用鼠标或手势完成至少一次触摸。
 3. 等待约 5 秒触发队列刷新，或触发满 20 条事件。
-4. 打开 `analytics.html`，确认徽标显示 `Supabase 在线数据`，且互动次数增加。
-5. 在 SQL Editor 执行：
+4. 打开数据看板，确认徽标显示 `Supabase 在线数据` 且指标增长。
+
+在 Supabase SQL Editor 可复查：
 
 ```sql
 select public.analytics_dashboard();
@@ -71,114 +85,113 @@ select count(*) from public.interaction_events;
 select count(*) from public.guests;
 ```
 
-预期：匿名看板 RPC 可执行；浏览器使用 anon key 时不能直接 `select * from interaction_events`。
-
-### 3.4 安全验收
+安全边界：
 
 - `guests`、`sessions`、`interaction_events` 均启用 RLS。
-- anon/authenticated 只获得 `interaction_events` 的 INSERT 权限。
-- `analytics_dashboard()` 只返回聚合值。
-- 事件类型受 INSERT policy 白名单限制。
-- 前端网络请求中不出现摄像头帧或上传照片内容。
+- 匿名浏览器只能调用必要的写入 RPC、插入白名单事件和读取聚合 RPC。
+- 匿名直接读取访客和互动明细会被拒绝。
+- 摄像头帧和用户宠物照片不会上传。
 
-## 4. GitHub 发布
+## 4. GitHub Pages 发布
 
-本项目已初始化本地 Git 仓库。首次关联远端前，先把占位身份替换成实际团队信息：
+### 4.1 自动发布流程
+
+工作流文件：`.github/workflows/deploy-pages.yml`
+
+每次推送到 `main`，工作流依次执行：
+
+1. 检出仓库并安装 Node.js 22。
+2. 执行 `npm ci` 和 `npm test`。
+3. 使用 `VITE_BASE_PATH=/gesture-pet-bloom/` 构建。
+4. 把 `dist/` 作为 Pages artifact 上传。
+5. 通过 GitHub Pages 官方 Actions 发布，无需提交 `dist/` 到 Git。
+
+也可以在仓库 `Actions -> Deploy GitHub Pages -> Run workflow` 手动重跑。
+
+### 4.2 Pages 设置
+
+仓库 `Settings -> Pages -> Build and deployment` 的 Source 必须选择 `GitHub Actions`。如果使用 REST/CLI 初始化：
 
 ```bash
-git config user.name "你的名字"
-git config user.email "你的邮箱"
-git remote add origin https://github.com/<账号>/<仓库>.git
-git push -u origin main
+gh api --method POST repos/YYT1013/gesture-pet-bloom/pages \
+  -f build_type=workflow
 ```
 
-如果远端由网页创建，选择空仓库，不要自动生成 README。推送后检查：
+若站点已存在，改用 `PUT` 或直接在 Settings 页面切换到 `GitHub Actions`。
 
-- `git log --oneline` 能看到分阶段提交。
-- GitHub 页面能看到 `main` 分支和最新提交。
-- `node_modules/`、`dist/`、`.env.local`、原始参考照片没有进入仓库。
+### 4.3 子路径资源规则
 
-如需 PR 流程，可从 `feat/competition-release` 分支提交 Pull Request，再合并到 `main`。
-
-## 5. Vercel 发布
-
-### 5.1 从 Git 仓库导入
-
-1. 在 Vercel 新建项目并导入 GitHub 仓库。
-2. Framework Preset 选择 Vite。
-3. Build Command 使用 `npm run build`。
-4. Output Directory 使用 `dist`。
-5. 在 Environment Variables 添加：
+GitHub 项目页不是根域名，页面位于 `/gesture-pet-bloom/`。因此构建必须设置：
 
 ```text
-VITE_SUPABASE_URL
-VITE_SUPABASE_ANON_KEY
+VITE_BASE_PATH=/gesture-pet-bloom/
 ```
 
-6. 部署 Production，记录 HTTPS URL。
+`vite.config.js` 会把该值写入 CSS、JavaScript 和 module preload 地址。运行时的模型、wasm、宠物和场景资源使用基于 `import.meta.url` 的 URL，能够跟随打包模块进入同一子目录。
 
-### 5.2 从 CLI 发布
+## 5. 线上验收
 
-```bash
-npx vercel
-npx vercel env add VITE_SUPABASE_URL
-npx vercel env add VITE_SUPABASE_ANON_KEY
-npx vercel --prod
+按顺序检查：
+
+1. 以下地址都返回 HTTP 200，且不跳到 404：
+
+```text
+https://YYT1013.github.io/gesture-pet-bloom/
+https://YYT1013.github.io/gesture-pet-bloom/analytics.html
+https://YYT1013.github.io/gesture-pet-bloom/models/hand_landmarker.task
+https://YYT1013.github.io/gesture-pet-bloom/lib/wasm/vision_wasm_internal.wasm
 ```
 
-CLI 需要先完成 Vercel 登录。不要把 token 写入仓库。
-
-### 5.3 线上验收
-
-- `https://<domain>/` 返回 200。
-- `https://<domain>/analytics.html` 返回 200。
-- 页面通过 HTTPS 成功请求摄像头权限。
-- wasm 请求的 Content-Type 为 `application/wasm`。
-- 模型、宠物图片和场景图片加载无 404。
-- 配置 Supabase 后，互动看板显示在线来源且数据增长。
-- 手机宽度 390px 下，首页和数据看板没有横向溢出。
-
-## 6. 发布后回归
-
-线上验证至少执行以下检查：
-
-```bash
-node tools/e2e-cdp.mjs https://<domain> ui
-```
-
-也可以使用环境变量指定线上域名，仅验证已打包页面：
+2. wasm 响应头为 `Content-Type: application/wasm`：
 
 ```powershell
-$env:PET_BASE='https://<domain>'
+curl.exe -I https://YYT1013.github.io/gesture-pet-bloom/lib/wasm/vision_wasm_internal.wasm
+```
+
+3. 首页和看板无控制台错误、无资源 404，桌面和 390px 手机宽度无横向溢出。
+4. Chrome/Edge 在 HTTPS 页面成功申请摄像头权限，手动做出触摸和张开手动作。
+5. 互动后看板显示 `Supabase 在线数据`，并出现新增指标。
+
+自动回归：
+
+```bash
+node tools/e2e-cdp.mjs https://YYT1013.github.io/gesture-pet-bloom ui
+```
+
+也可以使用环境变量：
+
+```powershell
+$env:PET_BASE='https://YYT1013.github.io/gesture-pet-bloom'
 node tools/e2e-cdp.mjs ui
 ```
 
-线上只运行 `ui` 模式；完整自检页 `_e2e.html` 未包含在 `dist` 中。
+CDP 无头浏览器可验证页面、资源、画布和布局；物理摄像头权限仍需在真实浏览器中手动确认。
 
-CDP 无头浏览器能验证页面、资源、画布和布局；物理摄像头权限仍需在 Chrome/Edge 中手动确认。
-
-## 7. 故障排查
+## 6. 故障排查
 
 | 现象 | 检查 |
 |---|---|
-| Vercel 构建找不到 Node 版本 | 项目使用 Node 20.19+，必要时在 Vercel 设置 Node.js Version |
-| 部署后模型 404 | 确认 Build Command 是 `npm run build`，它会复制模型和 wasm |
-| wasm 报 MIME 错误 | 检查 `vercel.json` 的 wasm header 和响应头 |
-| 摄像头不可用 | 必须 HTTPS；iframe 必须包含 `allow="camera"` |
-| 看板一直本地模式 | 环境变量未注入或未重新部署；变量变更后需要新构建 |
-| 云端在线但无数据 | 等待队列 5 秒刷新，确认 SQL RPC 和事件 INSERT 权限 |
-| SQL 可写入但看板为空 | 检查 `analytics_dashboard()` 是否存在且 anon 有 EXECUTE 权限 |
+| Actions 构建失败 | 查看 `Deploy GitHub Pages` 工作流日志；先本地运行 `npm test` 和 `npm run build` |
+| Pages 设置报错 | `Settings -> Pages` 的 Source 选择 `GitHub Actions` |
+| 页面 404 | 确认线上路径带 `/gesture-pet-bloom/`，并等待首次部署完成 |
+| CSS/JS 404 | 确认 Actions 中设置了 `VITE_BASE_PATH=/gesture-pet-bloom/` |
+| 部署后模型 404 | 确认构建命令是 `npm run build`，它会复制 `models/`、`lib/` 和 `assets/` |
+| `.mjs` 或 wasm MIME 错误 | 检查 Pages 响应的 `Content-Type`，确认发布的是构建后的 `dist/` artifact |
+| 摄像头不可用 | 必须使用 HTTPS；iframe 必须包含 `allow="camera"` |
+| 看板一直本地模式 | 检查仓库 Variables 是否设置，并在变量变更后重跑 Pages 工作流 |
+| 云端在线但无数据 | 等待队列 5 秒刷新，检查 RPC、匿名 INSERT 权限和网络请求 |
 
-## 8. 最终验收记录
+## 7. 最终验收记录
 
-发布完成后在此填写：
+首次真实 Pages 部署完成后填写，不能仅凭本地构建标记线上完成。
 
 ```text
 Commit:
-Supabase project:
+Supabase project: gesture-pet-bloom / mrlnhdnlimaltinibjgi
 Supabase write/read:
-GitHub remote:
-Vercel production URL:
+GitHub remote: https://github.com/YYT1013/gesture-pet-bloom
+GitHub Pages URL:
+GitHub Actions run:
 Desktop camera:
 Mobile layout:
 验收人 / 时间:

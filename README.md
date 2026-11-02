@@ -57,6 +57,14 @@ npm run build
 构建结果在 `dist/`，把它部署到静态托管即可。Vite 负责打包页面和脚本，构建脚本会额外把
 `assets/`、`models/`、`lib/` 原样复制进 `dist/`。不要在源码根目录直接上传后依赖 `file://` 打开。
 
+当前正式演示使用 GitHub Pages，`main` 分支推送后由 Actions 自动发布：
+
+- 互动页：<https://YYT1013.github.io/gesture-pet-bloom/>
+- 数据看板：<https://YYT1013.github.io/gesture-pet-bloom/analytics.html>
+
+GitHub 项目页构建需要 `VITE_BASE_PATH=/gesture-pet-bloom/`。完整配置与线上验收步骤见
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)。
+
 > `dist/` 只包含网页和运行时资源，`refs/` 原始照片与根目录测试照片不会进入构建产物。
 > 发布时只上传 `dist/`，不要把整个源码目录上传到公开静态站点。
 
@@ -510,7 +518,7 @@ d = (k - 1) * min(rx, ry)           // <0 在身体里，>0 在外面
 ├── index.html              互动单页入口（含上传入口和数据看板链接）
 ├── analytics.html          匿名互动数据看板
 ├── package.json            Vite 脚本、依赖和 Node 版本要求
-├── vercel.json             Vercel 构建与 wasm MIME 配置
+├── .github/workflows/      GitHub Pages 测试、构建与自动发布
 ├── css/app.css             全部样式（无外网字体）+ 上传面板样式
 ├── css/analytics.css       数据看板样式
 ├── js/
